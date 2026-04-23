@@ -1,41 +1,42 @@
-from supabase import create_client
-from langchain_community.vectorstores import SupabaseVectorStore
-from app.config import SUPABASE_URL, SUPABASE_KEY, SUPABASE_TABLE, SUPABASE_QUERY_NAME
+# from supabase import create_client
+# from langchain_community.vectorstores import SupabaseVectorStore
+# from app.config import SUPABASE_URL, SUPABASE_KEY, SUPABASE_TABLE, SUPABASE_QUERY_NAME
+import psycopg2
+from langchain_core.documents import Document
+from langchain_postgres.vectorstores import PGVector
+from app.config import (
+    POSTGRES_HOST,
+    POSTGRES_PORT,
+    POSTGRES_DB,
+    POSTGRES_USER,
+    POSTGRES_PASSWORD
+)
 from app.rag.embeddings import embeddings
 
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+# supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+# 1. Construire l'URL de connexion (format SQLAlchemy)
+CONNECTION_STRING = f"postgresql+psycopg://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
 
-def search_supabase(query: str, k: int = 4):
-    # 1. Embedding de la question
-    query_embedding = embeddings.embed_query(query)
+def get_connection():
+    return psycopg2.connect(
+        host=POSTGRES_HOST,
+        port=POSTGRES_PORT,
+        dbname=POSTGRES_DB,
+        user=POSTGRES_USER,
+        password=POSTGRES_PASSWORD
+    )
 
-    # 2. Appel direct à la fonction RPC Supabase
-    response = supabase.rpc(
-        "match_documents",
-        {
-            "query_embedding": query_embedding,
-            "match_count": k
-        }
-    ).execute()
-
-    # 3. Convertir en objets Document
-    from langchain_core.documents import Document
-
-    docs = []
-    for item in response.data:
-        docs.append(
-            Document(
-                page_content=item["content"],
-                metadata=item["metadata"]
-            )
-        )
-
+COLLECTION_NAME = "my_rag_documents"
+def search_vectorstore(query: str, k: int = 4):
+    # Plus besoin de curseur SQL manuel, on utilise l'abstraction LangChain
+    docs = vector_store.similarity_search(query, k=k)
     return docs
 
-vector_store = SupabaseVectorStore(
-    client=supabase,
-    table_name=SUPABASE_TABLE,
-    query_name=SUPABASE_QUERY_NAME,
-    embedding=embeddings
+# 3. Initialiser le VectorStore
+vector_store = PGVector(
+    embeddings=embeddings,
+    collection_name=COLLECTION_NAME,
+    connection=CONNECTION_STRING,
+    use_jsonb=True, # Recommandé pour les métadonnées
 )

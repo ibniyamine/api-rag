@@ -7,3 +7,6 @@ python-dotenv
 pypdf 
 pandas
 streamlit
+psycopg2
+langchain-postgres
+openpyxl
